@@ -34,14 +34,14 @@ class PrimalDualPolicyGradientTest:
         self.epsilon = epsilon  # cost threshold for masking.
 
         self.num_of_aug_states = len(self.hmm.augmented_states)
-        self.num_of_maskin_actions = len(self.hmm.masking_acts)
+        self.num_of_actions = len(self.hmm.actions)
 
         # Initialize the masking policy parameters. self.theta = np.random.random([len(self.hmm.augmented_states),
         # len(self.hmm.masking_acts)])
 
         # Defining theta in pyTorch ways.
         self.theta_torch = torch.nn.Parameter(
-            torch.randn(self.num_of_aug_states, self.num_of_maskin_actions, dtype=torch.float32, device=device,
+            torch.randn(self.num_of_aug_states, self.num_of_actions, dtype=torch.float32, device=device,
                         requires_grad=True))
 
         self.transition_mat_torch = torch.from_numpy(self.hmm.transition_mat).type(dtype=torch.float32)
@@ -68,8 +68,8 @@ class PrimalDualPolicyGradientTest:
         # self.B_torch = self.B_torch.to(device)
         self.construct_B_matrix_torch()
 
-        # Construct the cost matrix -> Format: [state_indx, masking_act] = cost
-        self.cost_matrix = torch.zeros(len(self.hmm.augmented_states), len(self.hmm.masking_acts), device=device)
+        # Construct the cost matrix -> Format: [state_indx, masking_act] = cost ## TODO: Change the cost matrix to value matrix.
+        self.cost_matrix = torch.zeros(len(self.hmm.augmented_states), len(self.hmm.actions), device=device)
         self.construct_cost_matrix()
 
     def construct_cost_matrix(self):
@@ -308,7 +308,7 @@ class PrimalDualPolicyGradientTest:
 
         # H = 0
         H = torch.tensor(0, dtype=torch.float32, device=device)
-        nabla_H = torch.zeros([self.num_of_aug_states, self.num_of_maskin_actions],
+        nabla_H = torch.zeros([self.num_of_aug_states, self.num_of_actions],
                               device=device)
 
         for v in range(self.batch_size):
@@ -451,7 +451,7 @@ class PrimalDualPolicyGradientTest:
         ################################################################################################################################
 
         logits_2 = self.theta_torch - self.theta_torch.max(dim=1, keepdim=True).values
-        action_indx = self.hmm.mask_act_indx_dict[act]
+        action_indx = self.hmm.actions_indx_dict[act]
 
         actions_probs_2 = F.softmax(logits_2, dim=1)
         # actions_probs_2_prime = actions_probs_2[:, action_indx]
@@ -562,7 +562,7 @@ class PrimalDualPolicyGradientTest:
 
         state_indicators_2 = F.one_hot(state_data, num_classes=self.num_of_aug_states).float()  # shape: (
         # num_trajectories, trajectory_length, num_states)
-        action_indicators_2 = F.one_hot(action_data, num_classes=self.num_of_maskin_actions).float()  # shape: (
+        action_indicators_2 = F.one_hot(action_data, num_classes=self.num_of_actions).float()  # shape: (
         # num_trajectories, trajectory_length, num_actions)
 
         # Vectorized log_policy_gradient for the entire batch (num_trajectories, trajectory_length, num_states,
@@ -659,7 +659,7 @@ class PrimalDualPolicyGradientTest:
                 self.theta_torch = self.theta_torch + self.eta * grad_L
 
             self.lambda_mul = self.lambda_mul - self.kappa * (
-                    self.epsilon - (approximate_value_total / trajectory_iter))
+                     (approximate_value_total / trajectory_iter) - self.epsilon)
 
             self.lambda_mul = torch.clamp(self.lambda_mul,
                                           min=0.0)  # Clamping lambda values to be greater than or equal to 0.

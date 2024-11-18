@@ -188,9 +188,9 @@ hmm_p2 = HiddenMarkovModelP2(agent_gw_1.mdp, sensor_net, secret_goal_states=secr
 # masking_policy_gradient = PrimalDualPolicyGradient(hmm=hmm_p2, iter_num=1000, V=10, T=10, eta=1.5, kappa=0.1, epsilon=threshold)
 # masking_policy_gradient.solver()
 
-# masking_policy_gradient = PrimalDualPolicyGradientTest(hmm=hmm_p2, iter_num=3000, batch_size=100, V=100, T=12,
-#                                                        eta=3.2,
-#                                                        kappa=0.25,
-#                                                        epsilon=threshold)
+masking_policy_gradient = PrimalDualPolicyGradientTest(hmm=hmm_p2, iter_num=3000, batch_size=100, V=100, T=12,
+                                                       eta=3.2,
+                                                       kappa=0.25,
+                                                       epsilon=0.3)
 
 masking_policy_gradient.solver()

@@ -73,9 +73,9 @@ class PrimalDualPolicyGradientTest:
         self.construct_cost_matrix()
 
     def construct_cost_matrix(self):
-        for s in self.hmm.cost_dict:
-            for a in self.hmm.cost_dict[s]:
-                self.cost_matrix[s, a] = self.hmm.cost_dict[s][a]
+        for s in self.hmm.value_dict:
+            for a in self.hmm.value_dict[s]:
+                self.cost_matrix[s, a] = self.hmm.value_dict[s][a]
         return
 
     def sample_action_torch(self, state):

@@ -6,7 +6,7 @@ import random
 
 
 class HiddenMarkovModelP2:
-    def __init__(self, agent_mdp, sensors, state_obs2=dict([]), secret_goal_states=list([])):
+    def __init__(self, agent_mdp, sensors, state_obs2=dict([]), value_dict=dict([]), secret_goal_states=list([])):
         if not isinstance(agent_mdp, MDP):
             raise TypeError("Expected agent_mdp to be an instance of MDP.")
 
@@ -25,6 +25,13 @@ class HiddenMarkovModelP2:
         indx_num = 0
         for aug_st in self.augmented_states:
             self.augmented_states_indx_dict[aug_st] = indx_num
+            indx_num += 1
+
+        self.actions = self.agent_mdp.actlist  # The actions of the agent MDP.
+        self.actions_indx_dict = dict()
+        indx_num = 0
+        for act in self.actions:
+            self.actions_indx_dict[act] = indx_num
             indx_num += 1
 
         # self.transition_dict = defaultdict(
@@ -75,8 +82,21 @@ class HiddenMarkovModelP2:
         self.initial_states = set()
         self.get_initial_states()
 
+        # set the value dictionary.
+        self.value_dict_input = value_dict
+        self.value_dict = defaultdict(lambda: defaultdict(dict))  # The format is [aug_st_indx][mask_act_indx]=value.
+        self.get_value_dict()
+
         self.secret_goal_states = secret_goal_states  # The secret goal states.
         # self.get_secret_goal_states(secret_goal_states)
+
+    def get_value_dict(self):
+        # Assign cost/reward/value.
+        for state in self.augmented_states:
+            for act in self.actions:
+                self.value_dict[self.augmented_states_indx_dict[state]][self.actions_indx_dict[act]] = self.value_dict_input[state][act]
+
+        return
 
     # def get_secret_goal_states(self, secret_goal_states):
     #     # Construct a list of augmented secret states.
@@ -211,8 +231,8 @@ class HiddenMarkovModelP2:
             obs_new_list.append('0')
             return random.choices(obs_new_list)[0]
 
-    def sample_next_state(self, state, masking_act):
-        # Given an augmented state, a masking action, the function returns a sampled next state.
-        next_states_supp = list(self.transition_dict[state][masking_act].keys())
-        next_states_prob = [self.transition_dict[state][masking_act][next_state] for next_state in next_states_supp]
+    def sample_next_state(self, state, act):
+        # Given an augmented state, a action, the function returns a sampled next state.
+        next_states_supp = list(self.transition_dict[state][act].keys())
+        next_states_prob = [self.transition_dict[state][act][next_state] for next_state in next_states_supp]
         return random.choices(next_states_supp, weights=next_states_prob)[0]

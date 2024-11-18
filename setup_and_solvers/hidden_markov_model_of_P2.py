@@ -83,7 +83,7 @@ class HiddenMarkovModelP2:
         self.get_initial_states()
 
         # set the value dictionary.
-        self.value_dict_input = value_dict
+        self.value_dict_input = value_dict # The value dictionary for the augmented state-space i.e., only state dependednt.
         self.value_dict = defaultdict(lambda: defaultdict(dict))  # The format is [aug_st_indx][mask_act_indx]=value.
         self.get_value_dict()
 
@@ -94,7 +94,7 @@ class HiddenMarkovModelP2:
         # Assign cost/reward/value.
         for state in self.augmented_states:
             for act in self.actions:
-                self.value_dict[self.augmented_states_indx_dict[state]][self.actions_indx_dict[act]] = self.value_dict_input[state][act]
+                self.value_dict[self.augmented_states_indx_dict[state]][self.actions_indx_dict[act]] = self.value_dict_input[state]
 
         return
 

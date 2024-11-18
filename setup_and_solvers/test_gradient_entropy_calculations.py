@@ -69,13 +69,13 @@ class PrimalDualPolicyGradientTest:
         self.construct_B_matrix_torch()
 
         # Construct the cost matrix -> Format: [state_indx, masking_act] = cost ## TODO: Change the cost matrix to value matrix.
-        self.cost_matrix = torch.zeros(len(self.hmm.augmented_states), len(self.hmm.actions), device=device)
+        self.value_matrix = torch.zeros(len(self.hmm.augmented_states), len(self.hmm.actions), device=device)
         self.construct_cost_matrix()
 
     def construct_cost_matrix(self):
         for s in self.hmm.value_dict:
             for a in self.hmm.value_dict[s]:
-                self.cost_matrix[s, a] = self.hmm.value_dict[s][a]
+                self.value_matrix[s, a] = self.hmm.value_dict[s][a]
         return
 
     def sample_action_torch(self, state):
@@ -580,7 +580,7 @@ class PrimalDualPolicyGradientTest:
         log_policy_gradient_2 = partial_pi_theta_2.sum(dim=1)  # Summing over the trajectory length (time steps)
 
         # Compute the discounted return for each trajectory
-        costs_2 = torch.tensor([[self.cost_matrix[s, a] for s, a in zip(state_data[i], action_data[i])] for i in
+        costs_2 = torch.tensor([[self.value_matrix[s, a] for s, a in zip(state_data[i], action_data[i])] for i in
                                 range(self.batch_size)],
                                dtype=torch.float32, device=device)  # shape: (num_trajectories, trajectory_length)
         discounted_returns_2 = torch.sum(costs_2, dim=1)  # shape: (num_trajectories,)

@@ -34,6 +34,8 @@ class HiddenMarkovModelP2:
             self.actions_indx_dict[act] = indx_num
             indx_num += 1
 
+        self.act_indx_reverse_dict = {v: k for k, v in self.actions_indx_dict.items()}
+
         # self.transition_dict = defaultdict(
         #     lambda: defaultdict(dict))  # The transition dictionary for the augmented state-space.
 
@@ -108,6 +110,18 @@ class HiddenMarkovModelP2:
     # def get_transition_dict(self): # The transition dict is the transition function such that transition_dict[
     # state][mask][next_state]=probability. for state, mask in itertools.product(self.augmented_states,
     # self.masking_acts): # TODO: Consider only the post states to populate the trans dict.
+
+    # def get_transition_dict(self):
+    #     # The transition_dict is the transition function such that transition_dict[state][mask][next_state]=probability.
+    #     for state, act, next_state in itertools.product(self.augmented_states, self.augmented_states):
+    #         if next_state[1] == mask:
+    #             self.transition_dict[state][mask][next_state] = self.get_transition_probability(state[0], next_state[
+    #                 0])
+    #         else:
+    #             self.transition_dict[state][mask][next_state] = 0.0
+    #     return
+
+
 
     # def get_transition_dict(self):
     #     # The transition_dict is the transition function such that transition_dict[state][mask][next_state]=probability.
@@ -206,7 +220,7 @@ class HiddenMarkovModelP2:
         if len(obs_list) == 0:  # To return null observation with prob. 1 when masked.
             obs_list.append('0')
             return random.choices(obs_list)[0]
-        elif state[0] not in self.sensors.coverage[
+        elif state not in self.sensors.coverage[
             'NO']:  # When not masked and under a sensor, probabilistic observation.
             obs_list.append('0')
             return random.choices(obs_list, weights=[1 - self.obs_noise, self.obs_noise])[0]
@@ -222,7 +236,7 @@ class HiddenMarkovModelP2:
         if len(obs_list) == 0:  # To return null observation with prob. 1 when masked.
             obs_list.append('0')
             return random.choices(obs_list)[0]
-        elif state[0] not in self.sensors.coverage[
+        elif state not in self.sensors.coverage[
             'NO']:  # When not masked and under a sensor, probabilistic observation.
             obs_list.append('0')
             return random.choices(obs_list, weights=[1 - self.obs_noise, self.obs_noise])[0]
@@ -233,6 +247,7 @@ class HiddenMarkovModelP2:
 
     def sample_next_state(self, state, act):
         # Given an augmented state, a action, the function returns a sampled next state.
-        next_states_supp = list(self.transition_dict[state][act].keys())
-        next_states_prob = [self.transition_dict[state][act][next_state] for next_state in next_states_supp]
+        # next_states_supp = list(self.transition_dict[state][act].keys())
+        next_states_supp = list(self.transition_dict[state][self.act_indx_reverse_dict[act]].keys())
+        next_states_prob = [self.transition_dict[state][self.act_indx_reverse_dict[act]][next_state] for next_state in next_states_supp]
         return random.choices(next_states_supp, weights=next_states_prob)[0]

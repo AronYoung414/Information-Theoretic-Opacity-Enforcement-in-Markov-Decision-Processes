@@ -16,6 +16,8 @@ target = [9, 20, 23]
 # target = [23]
 
 secret_goal_states = [9, 20, 23]
+reward_states = [11, 22]
+
 obstacles = [17, 19]
 unsafe_u = [1, 15, 25, 35, 21]
 non_init_states = [1, 25, 9, 14, 15, 17, 19, 23, 35]
@@ -33,16 +35,7 @@ robot_ts = read_from_file_MDP_old('robotmdp.txt')
 
 # sensor setup
 sensors = {'A', 'B', 'C', 'D', 'E', 'NO'}
-# sensors = {'A', 'B', 'C', 'D', 'NO'}
 
-
-# coverage sets
-# setA = {3, 4, 9, 10}
-# setB = {21, 22, 27, 28, 33, 34}
-# setC = {23, 29, 35}
-# setD = {6, 7, 8, 12, 13, 14}
-# setE = {5, 11}
-# setNO = {0, 1, 2, 15, 16, 17, 18, 19, 20, 24, 25, 26, 30, 31, 32}
 
 setA = {3, 4, 9, 10}
 setB = {21, 22, 27, 28, 33, 34}
@@ -51,41 +44,12 @@ setD = {6, 7, 8, 12, 13, 14}
 setE = {20}
 setNO = {0, 1, 2, 15, 16, 17, 18, 19, 24, 25, 30, 31, 32, 5, 11, 26}
 
-# # masking actions
-# masking_action = dict([])
-#
-# masking_action[0] = {'A'}
-# masking_action[1] = {'B'}
-# masking_action[2] = {'C'}
-# masking_action[3] = {'D'}
-# # masking_action[4] = {'E'}
-# masking_action[4] = {'F'}  # 'F' is the no masking action.
 
-# no_mask_act = 4
 
 # sensor noise
 sensor_noise = 0.15
 
-# # sensor costs
-# sensor_cost = dict([])
-# sensor_cost['A'] = 10
-# sensor_cost['B'] = 20
-# sensor_cost['C'] = 20
-# sensor_cost['D'] = 20
-# # sensor_cost['E'] = 15
-# sensor_cost['F'] = 0  # Cost for not masking.
 
-# # Define a threshold for sensor masking.
-# threshold = 70
-
-# sensor_cost_normalization = sum(abs(cost) for cost in sensor_cost.values())
-#
-# # updating the sensor costs with normalized costs.
-# for sens in sensor_cost:
-#     sensor_cost[sens] = sensor_cost[sens] / sensor_cost_normalization
-#
-# # normalized threshold.
-# threshold = threshold / sensor_cost_normalization
 
 sensor_net = Sensor()
 sensor_net.sensors = sensors
@@ -106,6 +70,15 @@ agent_gw_1.mdp.get_supp()
 agent_gw_1.mdp.gettrans()
 agent_gw_1.mdp.get_reward()
 agent_gw_1.draw_state_labels()
+
+# reward/ value matrix for the agent.
+value_dict = dict()
+for state in agent_gw_1.mdp.states:
+    if state in reward_states:
+        value_dict[state] = 1
+    else:
+        value_dict[state] = 0
+
 # goal_policy = LP(mdp=agent_gw_1.mdp, gamma=0.99)
 
 # logger.debug("Goal policy:")
@@ -183,12 +156,12 @@ agent_gw_1.draw_state_labels()
 # TODO: The augmented states still consider the gridcells with obstacles. Try by omitting the obstacle filled states
 #  -> reduces computation.
 
-hmm_p2 = HiddenMarkovModelP2(agent_gw_1.mdp, sensor_net, secret_goal_states=secret_goal_states)
+hmm_p2 = HiddenMarkovModelP2(agent_gw_1.mdp, sensor_net, value_dict=value_dict, secret_goal_states=secret_goal_states)
 
 # masking_policy_gradient = PrimalDualPolicyGradient(hmm=hmm_p2, iter_num=1000, V=10, T=10, eta=1.5, kappa=0.1, epsilon=threshold)
 # masking_policy_gradient.solver()
 
-masking_policy_gradient = PrimalDualPolicyGradientTest(hmm=hmm_p2, iter_num=3000, batch_size=100, V=100, T=12,
+masking_policy_gradient = PrimalDualPolicyGradientTest(hmm=hmm_p2, iter_num=3000, batch_size=100, V=1000, T=12,
                                                        eta=3.2,
                                                        kappa=0.25,
                                                        epsilon=0.3)

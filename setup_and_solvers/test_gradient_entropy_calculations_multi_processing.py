@@ -320,32 +320,6 @@ class PrimalDualPolicyGradientTest:
 
         return -H, -nabla_H
 
-    # def compute_value_function(self, state_data, action_data, gamma=1):
-    #     # Compute the value of taking the masking policy.
-    #     # V^{pi_mask}((s,\sigma)) = E_{pi_mask}[\sum_{k=0}^\infty \gamma^k C(V_k, pi_mask(V_k))|V_0 = (s,\sigma)]
-    #     # state_data[v, t] = s (index of state)
-    #     # action_data[v, t] = a (index of action)
-    #
-    #     value_function = 0.0
-    #
-    #     # Iterate over each trajectory in state_data.
-    #     for i in range(state_data.shape[0]):
-    #         total_return = 0.0
-    #         # Iterate over each time step in the trajectory.
-    #         for t in range(state_data.shape[1]):
-    #             state_indx = state_data[i, t]
-    #             action_indx = action_data[i, t]
-    #             # Obtain the cost of masking.
-    #             cost = self.hmm.cost_dict[state_indx][action_indx]
-    #             # Accumulated discounted cost.
-    #             total_return += gamma ** t * cost
-    #
-    #         # Accumulated value over all trajectories
-    #         value_function += total_return
-    #     # Average over the number of trajectories
-    #     value_function = value_function / state_data.shape[0]
-    #     return value_function
-
     def log_policy_gradient(self, state, act):
         # gradient = torch.zeros([len(self.hmm.augmented_states), len(self.hmm.masking_acts)], dtype=torch.float32,
         #                        device=device)
@@ -394,28 +368,6 @@ class PrimalDualPolicyGradientTest:
             # test_gradient[
             #     self.hmm.augmented_states_indx_dict[s_prime], self.hmm.mask_act_indx_dict[a_prime]] = partial_pi_theta
 
-        ################################################################################################################################
-
-        # logits_2 = self.theta_torch - self.theta_torch.max(dim=1, keepdim=True).values
-        # action_indx = self.hmm.mask_act_indx_dict[act]
-        #
-        # actions_probs_2 = F.softmax(logits_2, dim=1)
-        # # actions_probs_2_prime = actions_probs_2[:, action_indx]
-        # # actions_probs_2_prime = actions_probs_2
-        #
-        # state_indicators = (torch.arange(self.num_of_aug_states, device=device) == state).float()
-        # # action_indicators = (torch.arange(len(self.hmm.masking_acts), device=device) == act).float()
-        # action_indicators = torch.zeros_like(self.theta_torch, dtype=torch.float32, device=device)
-        # action_indicators[:, action_indx] = 1.0
-        #
-        # # action_difference = action_indicators - actions_probs_2_prime[:, None]
-        # action_difference = action_indicators - actions_probs_2
-        #
-        # # partial_pi_theta_2 = state_indicators[:, None] * action_difference
-        # gradient = state_indicators[:, None] * action_difference
-        #
-        # # gradient_2 = partial_pi_theta_2
-
         return gradient
 
     def nabla_value_function(self, state_data, action_data, gamma=1):
@@ -458,58 +410,13 @@ class PrimalDualPolicyGradientTest:
         value_function_gradient /= batch_size
         value_function /= batch_size
 
-        ###########################################################################################
-
-        # state_data = torch.tensor(state_data, dtype=torch.long, device=device)
-        # action_data = torch.tensor(action_data, dtype=torch.long, device=device)
-        #
-        # # state_indicators_2 = F.one_hot(state_data, num_classes=len(
-        # #     self.hmm.augmented_states)).float()  # shape: (num_trajectories, trajectory_length, num_states)
-        # # action_indicators_2 = F.one_hot(action_data, num_classes=len(
-        # #     self.hmm.masking_acts)).float()  # shape: (num_trajectories, trajectory_length, num_actions)
-        #
-        # state_indicators_2 = F.one_hot(state_data, num_classes=self.num_of_aug_states).float()  # shape: (
-        # # num_trajectories, trajectory_length, num_states)
-        # action_indicators_2 = F.one_hot(action_data, num_classes=self.num_of_maskin_actions).float()  # shape: (
-        # # num_trajectories, trajectory_length, num_actions)
-        #
-        # # Vectorized log_policy_gradient for the entire batch (num_trajectories, trajectory_length, num_states,
-        # # num_actions)
-        # logits_2 = self.theta_torch.unsqueeze(0).unsqueeze(0)  # Broadcast to (1, 1, num_states, num_actions)
-        # logits_2 = logits_2 - logits_2.max(dim=-1, keepdim=True)[0]  # For numerical stability in softmax
-        # actions_probs_2 = F.softmax(logits_2, dim=-1)  # (1, 1, num_states, num_actions)
-        #
-        # # Subtract action probabilities from action indicators (element-wise for all states and actions)
-        # partial_pi_theta_2 = state_indicators_2.unsqueeze(-1) * (action_indicators_2.unsqueeze(
-        #     -2) - actions_probs_2)  # shape: (num_trajectories, trajectory_length, num_states, num_actions)
-        #
-        # # Sum over the time axis to accumulate log_policy_gradient for each trajectory (num_trajectories, num_states,
-        # # num_actions)
-        # log_policy_gradient_2 = partial_pi_theta_2.sum(dim=1)  # Summing over the trajectory length (time steps)
-        #
-        # # Compute the discounted return for each trajectory
-        # costs_2 = torch.tensor([[self.cost_matrix[s, a] for s, a in zip(state_data[i], action_data[i])] for i in
-        #                         range(self.V)],
-        #                        dtype=torch.float32, device=device)  # shape: (num_trajectories, trajectory_length)
-        # discounted_returns_2 = torch.sum(costs_2, dim=1)  # shape: (num_trajectories,)
-        #
-        # # Reshape discounted returns for broadcasting in the final gradient computation
-        # discounted_returns_2 = discounted_returns_2.view(-1, 1, 1)  # shape: (num_trajectories, 1, 1)
-        #
-        # # Compute the value function gradient by multiplying discounted returns with log_policy_gradient
-        # value_function_gradient_2 = (discounted_returns_2 * log_policy_gradient_2).sum(dim=0)/self.V  # Averaging over
-        # # trajectories
-        #
-        # # Compute the average value function over all trajectories
-        # value_function_2 = discounted_returns_2.mean().item()
-
         return value_function_gradient, value_function
 
-    def parallel_worker(self, i, return_dict):
-        # Solve each trajectory separately and then add the values to update the gradient value.
-        approximate_cond_entropy = 0
-        grad_H = 0
-        trajectory
+    # def parallel_worker(self, i, return_dict):
+    #     # Solve each trajectory separately and then add the values to update the gradient value.
+    #     approximate_cond_entropy = 0
+    #     grad_H = 0
+    #     trajectory
 
     def solver(self):
 

@@ -19,7 +19,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 
 
-class PrimalDualPolicyGradientTest:
+class InitialOpacityPolicyGradient:
     def __init__(self, hmm, ex_num, iter_num=1000, batch_size=1, V=100, T=10, eta=1, kappa=0.1, epsilon=0):
         if not isinstance(hmm, HiddenMarkovModelP2):
             raise TypeError("Expected hmm to be an instance of HiddenMarkovModelP2.")
@@ -186,37 +186,42 @@ class PrimalDualPolicyGradientTest:
 
         return A_matrices
 
-    def compute_probability_of_observations(self, A_matrices):
-        # Computes P_\theta(y) = P(o_{1:T}) = 1^T.A^\theta_{o_{T:1}}.\mu_0
+    def compute_probability_of_observations(self, A_matrices, s_0):
+        # Computes P_\theta(y) = P(o_{1:T}) = 1^T.A^\theta_{o_{T:1}}.\mu_0, P_\theta(y|s_0) = 1^T.A^\theta_{o_{T:1}}.1_s0
         # Also computes A^\theta_{o_{T-1:1}}.\mu_0 -->  Required in later calculations.
 
         # A_matrices is a list of A matrices computed given T_theta and a sequence of observations.
 
+        # Define one hot vector
+        one_hot_vec = np.zeros(len(self.hmm.augmented_states))  # The vector 1_s0
+        one_hot_vec[s_0] = 1
+        one_hot_vec = torch.from_numpy(one_hot_vec).type(dtype=torch.float32)
+        one_hot_vec = one_hot_vec.to(device)
+
         result_prob = self.mu_0_torch  # For P_\theta(y) = P(o_{1:T}) = 1^T.A^\theta_{o_{T:1}}.\mu_0
-        resultant_matrix = self.mu_0_torch  # For A^\theta_{o_{T-1:1}}.\mu_0 -->  Required in later calculations.
+        p_y_s0 = one_hot_vec  # For P_\theta(y|s_0) = 1^T.A^\theta_{o_{T:1}}.1_s0
+        # resultant_matrix = self.mu_0_torch  # For A^\theta_{o_{T-1:1}}.\mu_0 -->  Required in later calculations.
 
         # Define a counter to stop the multiplication at T-1 for one of the results and T for the other.
-        counter = len(A_matrices)
+        # counter = len(A_matrices)
         # sequentially multiply with A matrices.
         for A in A_matrices:
-            if counter > 1:
-                result_prob = torch.matmul(A, result_prob)
-                resultant_matrix = torch.matmul(A, resultant_matrix)
-                counter -= 1
-
-            else:
-                result_prob = torch.matmul(A, result_prob)
-                counter -= 1
+            result_prob = torch.matmul(A, result_prob)
+            p_y_s0 = torch.matmul(A, p_y_s0)
 
         # Multiplying with 1^T is nothing but summing up. Hence, we do the following.
         result_prob_P_y = result_prob.sum()
+        result_prob_P_y_s0 = p_y_s0.sum()
 
-        resultant_matrix_prob_y_one_less = resultant_matrix.sum()
+        # resultant_matrix_prob_y_one_less = resultant_matrix.sum()
         # Compute the gradient later by simply using result_prob_to_return.backward() --> This uses autograd to
         # compute gradient.
 
         result_prob_P_y.backward(retain_graph=True)  # Gradient of P_\theta(y).
         gradient_P_y = self.theta_torch.grad.clone()
+
+        result_prob_P_y_s0.backward(retain_graph=True)  # Gradient of P_\theta(y|s0).
+        gradient_P_y_s0 = self.theta_torch.grad.clone()
 
         # resultant_matrix_prob_y_one_less.backward(retain_graph=True)  # Gradient of P_\theta(O_{1:T-1}).
         # gradient_P_y_one_less = self.theta_torch.grad.clone()
@@ -224,62 +229,22 @@ class PrimalDualPolicyGradientTest:
         # clearing .grad for the next gradient computation.
         self.theta_torch.grad.zero_()
 
-        return result_prob_P_y, resultant_matrix, gradient_P_y
+        return result_prob_P_y, gradient_P_y, result_prob_P_y_s0, gradient_P_y_s0
         # return resultant_matrix_prob_y_one_less, resultant_matrix, gradient_P_y_one_less
 
-    def compute_joint_dist_of_zT_and_obs_less_than_T(self, resultant_matrix, g):
-        # TODO: This is for verification. This function is not needed, one-hot vector multiplication is simply selecting that particular element from the other vector.
-        # Computes P_\theta(Z_T, o_{1:T-1})
-        # The resultant_matrix --> A^\theta_{o_{T-1:1}}.\mu_0
-        # g -> the secret state
-        # Outputs: 1^T_g.A^\theta_{o_{T-1:1}}.\mu_0
+    def P_S0_g_Y(self, A_matrices, s_0):
+        # Computes P_\theta(s_0|y) = P_\theta(y|s_0) \mu_0(s_0) / P_\theta(y)
+        prob_P_y, gradient_P_y, prob_P_y_s0, gradient_P_y_s0 = self.compute_probability_of_observations(A_matrices, s_0)
+        P_s0_y = prob_P_y_s0 * self.mu_0_torch[s_0] / prob_P_y
+        gradient_P_s0_y = ((self.mu_0_torch[s_0] / prob_P_y) * gradient_P_y_s0 -
+                           (self.mu_0_torch[s_0] * prob_P_y_s0 / prob_P_y ** 2) * gradient_P_y)
+        return P_s0_y, gradient_P_s0_y, prob_P_y, gradient_P_y
+        # return resultant_matrix_prob_y_one_less, resultant_matrix, gradient_P_y_one_less
 
-        ones_g = torch.zeros(self.num_of_aug_states, device=device)
-        ones_g[self.hmm.augmented_states_indx_dict[g]] = 1
+    def approximate_conditional_entropy_and_gradient_S0_given_Y(self, T_theta, y_obs_data):
+        # Computes the conditional entropy H(S_0 | Y; \theta); AND the gradient of conditional entropy \nabla_theta
+        # H(S_0|Y; \theta).
 
-        # joint_dist_zT_and_obs_less_T = torch.matmul(ones_g, resultant_matrix)
-
-        # return joint_dist_zT_and_obs_less_T
-        return torch.dot(ones_g, resultant_matrix)
-
-    def P_W_g_Y(self, y_v, A_matrices):
-        # Computes the probability of P_\theta(w_T=1|y).
-        # Outputs \sum_{g\in G} P(o_T|g).(1^T_g A^\theta_{o_{T-1:1}} \mu_0)/P_\theta(y).
-
-        flag = 0
-        o_T = y_v[-1]
-        result_P_y, resultant_matrix, gradient_P_y = self.compute_probability_of_observations(A_matrices)
-
-        for g in self.hmm.secret_goal_states:
-            # joint_dist_zT_and_obs_less_T = self.compute_joint_dist_of_zT_and_obs_less_than_T(resultant_matrix, g)
-            joint_dist_zT_and_obs_less_T = resultant_matrix[self.hmm.augmented_states_indx_dict[g]]
-            if flag == 0:
-                result_P_W_g_Y = (self.hmm.emission_prob[g][o_T] * joint_dist_zT_and_obs_less_T) / result_P_y
-                flag = 1
-            else:
-                result_P_W_g_Y += (self.hmm.emission_prob[g][o_T] * joint_dist_zT_and_obs_less_T) / result_P_y
-            # if flag == 0:
-            #     result_P_W_g_Y = joint_dist_zT_and_obs_less_T / resultant_matrix.sum()  # TODO: Check if this is correct.
-            #     flag = 1
-            # else:
-            #     result_P_W_g_Y = result_P_W_g_Y + (joint_dist_zT_and_obs_less_T / resultant_matrix.sum())
-
-        # Compute the gradient of P_\theta(w_T=1|y).
-
-        result_P_W_g_Y.backward(retain_graph=True)
-        # result_P_W_g_Y.backward()
-        gradient_P_W_g_Y = self.theta_torch.grad.clone()
-
-        # Clearing .grad for next gradient computation.
-        self.theta_torch.grad.zero_()
-
-        return result_P_W_g_Y, gradient_P_W_g_Y, result_P_y, gradient_P_y
-
-    def approximate_conditional_entropy_and_gradient_W_given_Y(self, T_theta, y_obs_data):
-        # Computes the conditional entropy H(W_T | Y; \theta); AND the gradient of conditional entropy \nabla_theta
-        # H(W_T|Y; \theta).
-
-        # H = 0
         H = torch.tensor(0, dtype=torch.float32, device=device)
         nabla_H = torch.zeros([self.num_of_aug_states, self.num_of_actions],
                               device=device)
@@ -289,56 +254,32 @@ class PrimalDualPolicyGradientTest:
 
             # construct the A matrices.
             A_matrices = self.compute_A_matrices(T_theta, y_v)  # Compute for each y_v.
-            # result_prob_P_y, resultant_matrix = self.compute_probability_of_observations(A_matrices)  # TODO: Check
-            #  TODO: if this is better?! currently, it is done differently to be able to use autograd.
 
-            # values for the term w_T = 1.
-            p_theta_w_t_g_yv_1, gradient_p_theta_w_t_g_yv_1, result_P_y, gradient_P_y = self.P_W_g_Y(y_v, A_matrices)
+            for s_0 in self.hmm.initial_states:
+                # values for the term w_T = 1.
+                P_s0_y, gradient_P_s0_y, result_P_y, gradient_P_y = self.P_S0_g_Y(A_matrices,s_0)
 
-            # to prevent numerical issues, clamp the values of p_theta_w_t_g_yv_1 between 0 and 1.
-            p_theta_w_t_g_yv_1 = torch.clamp(p_theta_w_t_g_yv_1, min=0.0, max=1.0)
+                # to prevent numerical issues, clamp the values of p_theta_w_t_g_yv_1 between 0 and 1.
+                P_s0_y = torch.clamp(P_s0_y, min=0.0, max=1.0)
 
-            if p_theta_w_t_g_yv_1 != 0:
-                log2_p_w_t_g_yv_1 = torch.log2(p_theta_w_t_g_yv_1)
-            else:
-                log2_p_w_t_g_yv_1 = torch.zeros_like(p_theta_w_t_g_yv_1, device=device)
+                if P_s0_y != 0:
+                    log2_P_s0_y = torch.log2(P_s0_y)
+                else:
+                    log2_P_s0_y = torch.zeros_like(P_s0_y, device=device)
 
-            # Calculate the term when w_T = 1.
-            term_w_T_1 = p_theta_w_t_g_yv_1 * log2_p_w_t_g_yv_1
+                # Calculate the term P_\theta(s_0|y) * \log P_\theta(s_0|y).
+                term_p_logp = P_s0_y * log2_P_s0_y
 
-            # Computing the gradient for w_T = 1. term for gradient term w_T = 1. Computed as [log_2 P_\theta(
-            # w_T|y_v) \nabla_\theta P_\theta(w_T|y_v) + P_\theta(w_T|y_v) log_2 P_\theta(w_T|y_v) (\nabla_\theta
-            # P_\theta(y))/P_\theta(y) + (\nabla_\theta P_\theta(w_T|y_v))/log2]
-            gradient_term_w_T_1 = (log2_p_w_t_g_yv_1 * gradient_p_theta_w_t_g_yv_1) + (
-                    p_theta_w_t_g_yv_1 * log2_p_w_t_g_yv_1 * gradient_P_y / result_P_y) + (
-                                          gradient_p_theta_w_t_g_yv_1 / 0.301029995664)
+                # Computing the gradient for w_T = 1. term for gradient term w_T = 1. Computed as [log_2 P_\theta(
+                # w_T|y_v) \nabla_\theta P_\theta(w_T|y_v) + P_\theta(w_T|y_v) log_2 P_\theta(w_T|y_v) (\nabla_\theta
+                # P_\theta(y))/P_\theta(y) + (\nabla_\theta P_\theta(w_T|y_v))/log2]
+                gradient_term = (log2_P_s0_y * gradient_P_s0_y) + (
+                        P_s0_y * log2_P_s0_y * gradient_P_y / result_P_y) + (
+                                              gradient_P_s0_y / 0.301029995664) # 0.301029995664 = log2
 
-            # Values for term w_T = 0.
-            p_theta_w_t_g_yv_0 = 1 - p_theta_w_t_g_yv_1
+                H = H + term_p_logp
 
-            if p_theta_w_t_g_yv_0 != 0:
-                log2_p_w_t_g_yv_0 = torch.log2(p_theta_w_t_g_yv_0)
-            else:
-                log2_p_w_t_g_yv_0 = torch.zeros_like(p_theta_w_t_g_yv_0, device=device)
-
-            # Calculate the term when w_T = 0.
-            term_w_T_0 = p_theta_w_t_g_yv_0 * log2_p_w_t_g_yv_0
-
-            # Computing the gradient for w_T = 0. term for gradient term w_T = 0. Computed as [log_2 P_\theta(
-            # w_T|y_v) \nabla_\theta P_\theta(w_T|y_v) + P_\theta(w_T|y_v) log_2 P_\theta(w_T|y_v) (\nabla_\theta
-            # P_\theta(y))/P_\theta(y) + (\nabla_\theta P_\theta(w_T|y_v))/log2]
-
-            # Gradient of P_\theta(w_T|y_v) when w_T = 0.
-            gradient_p_theta_w_t_g_yv_0 = -gradient_p_theta_w_t_g_yv_1
-
-            gradient_term_w_T_0 = (log2_p_w_t_g_yv_0 * gradient_p_theta_w_t_g_yv_0) + (
-                    p_theta_w_t_g_yv_0 * log2_p_w_t_g_yv_0 * gradient_P_y / result_P_y) + (
-                                          gradient_p_theta_w_t_g_yv_0 / 0.301029995664)
-
-            H = H + (term_w_T_1 + term_w_T_0)
-
-            nabla_H = nabla_H + (gradient_term_w_T_1 + gradient_term_w_T_0)
-            # test_flag = 0
+                nabla_H = nabla_H + gradient_term
 
         H = H / self.batch_size
         # H.backward()
@@ -419,7 +360,7 @@ class PrimalDualPolicyGradientTest:
         return value_function_gradient_2, value_function_2
 
     def solver(self):
-        # Solve using policy gradient for last-state opacity enforcement.
+        # Solve using policy gradient for initial-state opacity enforcement.
         for i in range(self.iter_num):
             start = time.time()
             torch.cuda.empty_cache()
@@ -430,6 +371,7 @@ class PrimalDualPolicyGradientTest:
             approximate_value_total = 0
 
             trajectory_iter = int(self.V / self.batch_size)
+            self.kappa = self.kappa / (i + 1)
 
             for j in range(trajectory_iter):
                 torch.cuda.empty_cache()
@@ -443,7 +385,7 @@ class PrimalDualPolicyGradientTest:
                 # # Construct the matrix T_theta.
                 T_theta = self.construct_transition_matrix_T_theta_torch()
                 # Compute approximate conditional entropy and approximate gradient of entropy.
-                approximate_cond_entropy_new, grad_H_new = self.approximate_conditional_entropy_and_gradient_W_given_Y(
+                approximate_cond_entropy_new, grad_H_new = self.approximate_conditional_entropy_and_gradient_S0_given_Y(
                     T_theta,
                     y_obs_data)
                 approximate_cond_entropy = approximate_cond_entropy + approximate_cond_entropy_new.item()
@@ -464,8 +406,7 @@ class PrimalDualPolicyGradientTest:
 
                 # Computing gradient of Lagrangian with grad_H and grad_V.
                 # grad_L = grad_H + self.lambda_mul * grad_V
-
-            print("The approximate entropy is",approximate_cond_entropy / trajectory_iter)
+            print("The approximate entropy is", approximate_cond_entropy / trajectory_iter)
             self.entropy_list.append(approximate_cond_entropy / trajectory_iter)
 
             # grad_L = (grad_H / trajectory_iter)
@@ -476,8 +417,6 @@ class PrimalDualPolicyGradientTest:
 
             print("The approximate value is", approximate_value_total / trajectory_iter)
             self.threshold_list.append(approximate_value_total / trajectory_iter)
-
-            print("#" * 100)
 
             # SGD updates.
             # Update theta_torch under the no_grad() to ensure that it remains as the 'leaf node.'
@@ -495,6 +434,7 @@ class PrimalDualPolicyGradientTest:
 
             end = time.time()
             print("Time for the iteration", i, ":", end - start, "s.")
+            print("#" * 100)
 
         self.iteration_list = range(self.iter_num)
 
@@ -530,7 +470,7 @@ class PrimalDualPolicyGradientTest:
         plt.ylabel("Values")
         plt.legend()
         plt.grid(True)
-        plt.savefig(f'../Data/graph_{self.ex_num}.png')
+        plt.savefig(f'../Data_Initial/graph_{self.ex_num}.png')
         plt.show()
 
         return

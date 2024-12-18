@@ -69,8 +69,7 @@ class HiddenMarkovModelP2:
         # aug_state][obs]=probability
         self.get_emission_prob()
 
-        self.initial_dist = dict(
-            [])  # The initial distribution of the augmented state-space. initial_dist[augstate]=probability
+        self.initial_dist = dict([])  # The initial distribution of the augmented state-space. initial_dist[augstate]=probability
         # initial distribution array.
         self.mu_0 = np.zeros(len(self.augmented_states))
 

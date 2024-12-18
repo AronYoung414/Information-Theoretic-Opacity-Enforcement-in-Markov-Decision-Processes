@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pickle
 
-ex_num = 3
+ex_num = 2
 iter_num = 3000
 
 iteration_list = range(iter_num)
@@ -23,3 +23,8 @@ plt.legend()
 plt.grid(True)
 plt.savefig(f'../Data/graph_{ex_num}.png')
 plt.show()
+
+with open(f'../Data/final_control_policy_{ex_num}.pkl', 'rb') as file:
+    control_policy = pickle.load(file)
+
+print(control_policy)

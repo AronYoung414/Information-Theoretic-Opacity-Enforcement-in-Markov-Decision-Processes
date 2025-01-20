@@ -13,6 +13,8 @@ import gc
 import pickle
 from loguru import logger
 
+# torch.manual_seed(0)  # set random seed
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -52,8 +54,8 @@ class PrimalDualPolicyGradientTest:
         self.mu_0_torch = self.mu_0_torch.to(device)
 
         # Initialize the Lagrangian multiplier.
-        # self.lambda_mul = np.random.uniform(0, 10)
-        self.lambda_mul = 10 * torch.rand(1, device=device)
+        # self.lambda_mul = np.random.uniform(0, 2)
+        self.lambda_mul = 2 * torch.rand(1, device=device)
         # Lists for entropy and threshold.
         self.entropy_list = list([])
         self.threshold_list = list([])
@@ -430,6 +432,7 @@ class PrimalDualPolicyGradientTest:
             approximate_value_total = 0
 
             trajectory_iter = int(self.V / self.batch_size)
+            # self.kappa = self.kappa / (i + 1)
 
             for j in range(trajectory_iter):
                 torch.cuda.empty_cache()
@@ -465,7 +468,7 @@ class PrimalDualPolicyGradientTest:
                 # Computing gradient of Lagrangian with grad_H and grad_V.
                 # grad_L = grad_H + self.lambda_mul * grad_V
 
-            print("The approximate entropy is",approximate_cond_entropy / trajectory_iter)
+            print("The approximate entropy is", approximate_cond_entropy / trajectory_iter)
             self.entropy_list.append(approximate_cond_entropy / trajectory_iter)
 
             # grad_L = (grad_H / trajectory_iter)
@@ -476,8 +479,6 @@ class PrimalDualPolicyGradientTest:
 
             print("The approximate value is", approximate_value_total / trajectory_iter)
             self.threshold_list.append(approximate_value_total / trajectory_iter)
-
-            print("#" * 100)
 
             # SGD updates.
             # Update theta_torch under the no_grad() to ensure that it remains as the 'leaf node.'
@@ -495,14 +496,15 @@ class PrimalDualPolicyGradientTest:
 
             end = time.time()
             print("Time for the iteration", i, ":", end - start, "s.")
+            print("#" * 100)
 
         self.iteration_list = range(self.iter_num)
 
         # Saving the results for plotting later.
-        with open(f'../Data_Initial/entropy_values_{self.ex_num}.pkl', 'wb') as file:
+        with open(f'../Data/entropy_values_{self.ex_num}.pkl', 'wb') as file:
             pickle.dump(self.entropy_list, file)
 
-        with open(f'../Data_Initial/value_function_list_{self.ex_num}', 'wb') as file:
+        with open(f'../Data/value_function_list_{self.ex_num}', 'wb') as file:
             pickle.dump(self.threshold_list, file)
 
         # Saving the final policy from this implementation.
@@ -519,7 +521,7 @@ class PrimalDualPolicyGradientTest:
         logger.debug(policies)
 
         # Save policies using pickle.
-        with open(f'../Data_Initial/final_control_policy_{self.ex_num}.pkl', 'wb') as file:
+        with open(f'../Data/final_control_policy_{self.ex_num}.pkl', 'wb') as file:
             pickle.dump(policies, file)
 
         figure, axis = plt.subplots(2, 1)

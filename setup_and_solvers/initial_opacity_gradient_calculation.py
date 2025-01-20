@@ -13,6 +13,8 @@ import gc
 import pickle
 from loguru import logger
 
+# torch.manual_seed(0)  # set random seed
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -52,8 +54,8 @@ class InitialOpacityPolicyGradient:
         self.mu_0_torch = self.mu_0_torch.to(device)
 
         # Initialize the Lagrangian multiplier.
-        # self.lambda_mul = np.random.uniform(0, 10)
-        self.lambda_mul = 10 * torch.rand(1, device=device)
+        # self.lambda_mul = np.random.uniform(0, 1)
+        self.lambda_mul = torch.rand(1, device=device)
         # Lists for entropy and threshold.
         self.entropy_list = list([])
         self.threshold_list = list([])
@@ -257,7 +259,7 @@ class InitialOpacityPolicyGradient:
 
             for s_0 in self.hmm.initial_states:
                 # values for the term w_T = 1.
-                P_s0_y, gradient_P_s0_y, result_P_y, gradient_P_y = self.P_S0_g_Y(A_matrices,s_0)
+                P_s0_y, gradient_P_s0_y, result_P_y, gradient_P_y = self.P_S0_g_Y(A_matrices, s_0)
 
                 # to prevent numerical issues, clamp the values of p_theta_w_t_g_yv_1 between 0 and 1.
                 P_s0_y = torch.clamp(P_s0_y, min=0.0, max=1.0)
@@ -275,7 +277,7 @@ class InitialOpacityPolicyGradient:
                 # P_\theta(y))/P_\theta(y) + (\nabla_\theta P_\theta(w_T|y_v))/log2]
                 gradient_term = (log2_P_s0_y * gradient_P_s0_y) + (
                         P_s0_y * log2_P_s0_y * gradient_P_y / result_P_y) + (
-                                              gradient_P_s0_y / 0.301029995664) # 0.301029995664 = log2
+                                        gradient_P_s0_y / 0.301029995664)  # 0.301029995664 = log2
 
                 H = H + term_p_logp
 
@@ -371,7 +373,8 @@ class InitialOpacityPolicyGradient:
             approximate_value_total = 0
 
             trajectory_iter = int(self.V / self.batch_size)
-            self.kappa = self.kappa / (i + 1)
+            # self.kappa = self.kappa / (i + 1)
+            # self.eta = self.eta / (i + 1)
 
             for j in range(trajectory_iter):
                 torch.cuda.empty_cache()

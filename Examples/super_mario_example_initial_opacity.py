@@ -11,17 +11,17 @@ logger.info("This is the log file for the 6X6 gridworld with goal states 9, 20, 
 # Initial set-up for a 6x6 gridworld.
 ncols = 6
 nrows = 6
-target = [9, 20, 23]
+target = []
 # target for testing.
 # target = [23]
 
-secret_goal_states = [9, 20, 23]
-reward_states = [11, 22]
+secret_goal_states = [2, 20, 34]
+reward_states = [14, 22]
 
 obstacles = [17, 19]
-unsafe_u = [1, 15, 25, 35, 21]
-non_init_states = [1, 25, 9, 14, 15, 17, 19, 23, 35]
-initial = {0, 18, 30}
+unsafe_u = [7, 15, 25]
+non_init_states = [1, 25, 9, 14, 15, 17, 19, 23]
+initial = {0, 30, 35}
 initial_dist = dict([])
 # considering a single initial state.
 for state in range(36):
@@ -35,15 +35,15 @@ robot_ts = read_from_file_MDP_old('robotmdp.txt')
 # sensor setup
 sensors = {'A', 'B', 'C', 'D', 'E', 'NO'}
 
-setA = {3, 4, 9, 10}
-setB = {21, 22, 27, 28, 33, 34}
-setC = {23, 29, 35}
-setD = {6, 7, 8, 12, 13, 14}
+setA = {9}
+setB = {21, 22, 27, 28}
+setC = {23, 29}
+setD = {7, 8, 13, 14}
 setE = {20}
-setNO = {0, 1, 2, 15, 16, 17, 18, 19, 24, 25, 30, 31, 32, 5, 11, 26}
+setNO = {0, 1, 2, 3, 4, 6, 10, 12, 15, 16, 17, 18, 19, 24, 25, 30, 31, 32, 5, 11, 26, 33, 34, 35}
 
 # sensor noise
-sensor_noise = 0.15
+sensor_noise = 0.3
 
 sensor_net = Sensor()
 sensor_net.sensors = sensors
@@ -81,10 +81,10 @@ hmm_p2 = HiddenMarkovModelP2(agent_gw_1.mdp, sensor_net, value_dict=value_dict, 
 # masking_policy_gradient = PrimalDualPolicyGradient(hmm=hmm_p2, iter_num=1000, V=10, T=10, eta=1.5, kappa=0.1, epsilon=threshold)
 # masking_policy_gradient.solver()
 
-masking_policy_gradient = InitialOpacityPolicyGradient(hmm=hmm_p2, ex_num=3, iter_num=3000, batch_size=100, V=2000,
+masking_policy_gradient = InitialOpacityPolicyGradient(hmm=hmm_p2, ex_num=9, iter_num=5000, batch_size=100, V=2000,
                                                        T=12,
-                                                       eta=1,
-                                                       kappa=1,
-                                                       epsilon=0.7)  # decreasing kappa
+                                                       eta=0.5,
+                                                       kappa=0.05,
+                                                       epsilon=0.3)  # decreasing eta, kappa
 
 masking_policy_gradient.solver()

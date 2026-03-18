@@ -9,7 +9,7 @@ import copy
 
 class MDP:
 
-    def __init__(self, init=None, actlist=[], states=[], prob=dict([]), trans=dict([]), reward=dict([]),
+    def __init__(self, init=None, actlist=[], states=[], prob=dict([]), trans=dict([]), reward=dict([]), labels=dict([]),
                  init_dist=dict([]), disc_factor=1, goal_states=set([])):
         self.init = init
         self.actlist = actlist
@@ -21,6 +21,7 @@ class MDP:
         self.initial_distribution = init_dist
         self.disc_factor = disc_factor
         self.goal_states = goal_states
+        self.labels = labels  # Dict of the form labels[s]=set of labels.
 
         # self.gettrans()
 
@@ -79,8 +80,12 @@ class MDP:
                 S.add(a)
         return S
 
+    def L(self, state):
+        "Return the labels of a state."
+        return self.labels[state]
+
     def labeling(self, s, A):
-        self.L[s] = A
+        self.labels[s] = A
 
     def get_supp(self):
         self.suppDict = dict([])

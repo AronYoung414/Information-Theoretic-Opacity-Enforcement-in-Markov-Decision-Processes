@@ -1,11 +1,12 @@
 
 class Sensor:
-    def __init__(self, sensors=set(), coverage=dict([]), jamming_actions=dict([]), sensor_noise=0, sensor_cost_dict=dict([])):
+    def __init__(self, sensors=set(), coverage=dict([]), jamming_actions=dict([]), sensing_actions=dict([]), sensor_noise=0, sensor_cost_dict=dict([])):
         self.sensors = sensors
         self.coverage = coverage
         self.jamming_actions = jamming_actions
         self.sensor_noise = sensor_noise
         self.sensor_cost_dict = sensor_cost_dict
+        self.sensing_actions = sensing_actions
 
     def set_coverage(self, sensor_con, covered_set):
         # for each sensor, a subset of the surveillance region
@@ -17,3 +18,6 @@ class Sensor:
 
     def jam(self):
         return self.jamming_actions
+
+    def sense(self):
+        return self.sensing_actions
